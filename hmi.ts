@@ -1,76 +1,140 @@
 // 在此处添加您的代码
+enum DeviceType{
+    //% block=TA/HMI
+    ta,
+    //% block=DGUS
+    dgus,
+}
+
+
+declare namespace hmi {}
+
 /**
  * Control and get feedback via serial with a HMI screen (Serial Screen)
  */
-//% color=#E3338C weight=96 icon="\uf011
-namespace hmi {
-
+//% color=#23738C weight=96 icon="\uf03e"
+namespace hmi { //f011
+    let sCmdPrefix = "AA"
+    let sCmdPostfix ="CC33C33C"
+    let deviceType=DeviceType.ta
 
     /**
-     * sendCommendShowPic
+     * Init with screen type, TA or DGUS command mode. And will set Rx Buffer Size to Max (254)
+     * TA: AA ... CC33C33C
+     * DGUS: 5AA5 ... 
      */
-    //% help=hmi/sendCommendShowPic
-    //% blockId=sendCommendShowPic block="sendCommendShowPic" blockGap=16
-    //% useLoc="radio.sendCommendShowPic" draggableParameters=reporter
-    export function sendCommendShowPic(picID: number) {
-        let sCmd = toHexString(picID)
-        if (sCmd.length == 1) {
-            sCmd = "0" + sCmd
+    //% help=hmi/init
+    //% blockId=hmi_init block="Use HMI Screen in %type mode" blockGap=16 
+    //% weight=100
+    //% useLoc="hmi.init" draggableParameters=reporter
+    export function init(type:DeviceType):void{
+        deviceType=type
+        switch(type){
+            case DeviceType.ta:
+                sCmdPrefix = "AA"
+                sCmdPostfix = "CC33C33C"
+            case DeviceType.ta:
+                sCmdPrefix = "5AA5"
+                sCmdPostfix = ""
         }
-        sendCommend("70" + sCmd)
+        // Max=254
+        serial.setRxBufferSize(254)
     }
 
     /**
-     * sendCommendShowPic
+     * sendCommandHello
      */
-    //% help=hmi/sendCommend
-    //% blockId=sendCommend block="sendCommend" blockGap=16
-    //% useLoc="radio.sendCommend" draggableParameters=reporter
-    export function sendCommend(sCmd: string) {
-        sCmd = "AA" + sCmd + "CC33C33C"
+    //% help=hmi/sendCommandHello
+    //% blockId=sendCommandHello block="sendCommandHello" blockGap=16
+    //% weight=95
+    //% useLoc="hmi.sendCommandHello" draggableParameters=reporter
+    export function sendCommandHello():void {
+        sendCommand("00")
+    }
+
+    /**
+     * Send Command in HEX string, w/o space
+     */
+    //% help=hmi/sendCommand
+    //% blockId=sendCommand block="Send Command %sCmd" blockGap=16
+    //% useLoc="hmi.sendCommand" draggableParameters=reporter
+    export function sendCommand(sCmd: string) {
+        sCmd = sCmd.replaceAll(" ", "") + sCmdPostfix
+        sCmd = toHexString(sCmd.length/2)+sCmd
+        sCmd = sCmdPrefix+sCmd
         serial.writeBuffer(Buffer.fromHex(sCmd))
     }
 
     /**
-     * sendCommendShowPic
+     * Send show image command with image ID，which prestored in your HMI screen
      */
-    //% help=hmi/receivedCommand
-    //% blockId=receivedCommand block="receivedCommand" blockGap=16
-    //% useLoc="radio.receivedCommand" draggableParameters=reporter
-    export function receivedCommand(listCommand: any[]) {
-        let cmdTouchY = 0
-        let cmdTouchX = 0
-        if (listCommand.length != 5) {
-            basic.showIcon(IconNames.No)
-        } else if (listCommand[0] == 115 || listCommand[0] == 114) {
-            led.unplot(Math.map(cmdTouchX, 0, 640, 0, 5), Math.map(cmdTouchY, 0, 480, 0, 5))
-            cmdTouchX = listCommand[1] * 256 + listCommand[2]
-            cmdTouchY = listCommand[3] * 256 + listCommand[4]
-            led.plot(Math.map(cmdTouchX, 0, 640, 0, 5), Math.map(cmdTouchY, 0, 480, 0, 5))
-            sendCommendShowPic(Math.map(cmdTouchX, 0, 640, 1, 60))
-        } else {
-            basic.showIcon(IconNames.Surprised)
+    //% help=hmi/sendCommandShowPic
+    //% blockId=sendCommandShowPic block="Show Image ID=%picID" blockGap=16
+    //% useLoc="hmi.sendCommandShowPic" draggableParameters=reporter
+    export function sendCommandShowPic(picID: number) {
+        let sCmd = toHexString(picID)
+        if (sCmd.length == 1) {
+            sCmd = "0" + sCmd
         }
+        sendCommand("70" + sCmd)
     }
-    
+
     function toHexString(number: number):string {
         let temp2 = 0
         let temp = 0
         let sCmd = ""
-        temp = Math.trunc(number)
         while (temp >= 1) {
-            temp2 = temp % 16
+            temp = Math.trunc(number)
+            temp2 %= 16
             if (temp2 < 10) {
                 sCmd = "" + convertToText(temp2) + sCmd
             } else {
                 sCmd = "" + String.fromCharCode(temp2 + 55) + sCmd
             }
-            temp = Math.trunc(temp / 16)
+            temp /= 16
         }
+        if (sCmd.length%2==1)
+            sCmd= "0"+sCmd
         return sCmd
     }
 
-    function receiving() {
+    let onTouchHandler : (x:number, y:number)=>void
+
+
+    /**
+     * onTouch
+     */
+    //% help=hmi/onTouch
+    //% blockId=onTouch block="onTouch" blockGap=16
+    //% useLoc="hmi.onTouch" draggableParameters=reporter
+    export function onTouch(handler:(x: number, y: number)=>void):void{
+        onTouchHandler=handler
+    }
+
+    let onReceivedHandler : (list: number[])=>void
+
+    /**
+     * On Received Unknown Msg
+     */
+    //% help=hmi/receivedCommand
+    //% blockId=onReceivedUnknownMsg block="onReceivedUnknownMsg" blockGap=16
+    //% weight=50
+    //% useLoc="hmi.onReceivedUnknownMsg" draggableParameters=reporter
+    export function onReceivedUnknownMsg(handler: (list: number[]) => void):void{
+        onReceivedHandler=handler
+    }
+
+    function receivedCommand(listCommand: number[]) {
+        if (listCommand[0] == 115 || listCommand[0] == 114) {
+            if(onTouchHandler)
+                onTouchHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
+        } else {
+            if(onReceivedHandler)
+                onReceivedHandler(listCommand)
+        }
+    }
+
+    basic.forever( function() {
         let rxIndex = 0
         let rxV = 0
         let rxBuffer: Buffer = null
@@ -93,6 +157,6 @@ namespace hmi {
         } else {
             rxCmd.push(rxV)
         }
-    }
+    })
 
 }
