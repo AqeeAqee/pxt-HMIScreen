@@ -60,7 +60,8 @@ namespace hmi { //f011
     //% useLoc="hmi.sendCommand" draggableParameters=reporter
     export function sendCommand(sCmd: string) {
         sCmd = sCmd.replaceAll(" ", "") + sCmdPostfix
-        sCmd = toHexString(sCmd.length/2)+sCmd
+        if(deviceType==DeviceType.dgus)
+            sCmd = toHexString(sCmd.length/2)+sCmd
         sCmd = sCmdPrefix+sCmd
         serial.writeBuffer(Buffer.fromHex(sCmd))
     }
@@ -72,14 +73,15 @@ namespace hmi { //f011
     //% blockId=sendCommandShowPic block="Show Image ID=%picID" blockGap=16
     //% useLoc="hmi.sendCommandShowPic" draggableParameters=reporter
     export function sendCommandShowPic(picID: number) {
-        let sCmd = toHexString(picID)
-        if (sCmd.length == 1) {
-            sCmd = "0" + sCmd
+        switch(deviceType){
+            case DeviceType.ta:
+                sendCommand("70" + toHexString(picID))
+            case DeviceType.dgus:
+                sendCommand("8003" + toHexString(picID,4))
         }
-        sendCommand("70" + sCmd)
     }
 
-    function toHexString(number: number):string {
+    function toHexString(number: number, minByteLength:number =1):string {
         let temp2 = 0
         let temp = 0
         let sCmd = ""
@@ -93,8 +95,8 @@ namespace hmi { //f011
             }
             temp /= 16
         }
-        if (sCmd.length%2==1)
-            sCmd= "0"+sCmd
+        while (sCmd.length<minByteLength*2)
+            sCmd = "0" + sCmd
         return sCmd
     }
 
