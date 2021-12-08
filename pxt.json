@@ -1,5 +1,5 @@
 {
-    "name": "DWinHMI_BasicGrap",
+    "name": "pxt-SerialScreen",
     "description": "",
     "dependencies": {
         "core": "*",
@@ -9,7 +9,8 @@
     "files": [
         "main.blocks",
         "main.ts",
-        "README.md"
+        "README.md",
+        "hmi.ts"
     ],
     "testFiles": [
         "test.ts"
