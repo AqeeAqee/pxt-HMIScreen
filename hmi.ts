@@ -5,18 +5,6 @@
 //% color=#E3338C weight=96 icon="\uf011
 namespace hmi {
 
-    let rxIndex = 0
-    let rxV = 0
-    let rxBuffer: Buffer = null
-    let rxCmd = [0]
-    let index = 0
-    let temp2 = 0
-    let temp = 0
-    let cmdTouchY = 0
-    let cmdTouchX = 0
-    let sendCmdLastMs = 0
-    let sCmd = ""
-    sCmd = ""
 
     /**
      * sendCommendShowPic
@@ -24,8 +12,8 @@ namespace hmi {
     //% help=hmi/sendCommendShowPic
     //% blockId=sendCommendShowPic block="sendCommendShowPic" blockGap=16
     //% useLoc="radio.sendCommendShowPic" draggableParameters=reporter
-    function sendCommendShowPic(picID: number) {
-        toHexString(picID)
+    export function sendCommendShowPic(picID: number) {
+        let sCmd = toHexString(picID)
         if (sCmd.length == 1) {
             sCmd = "0" + sCmd
         }
@@ -38,10 +26,9 @@ namespace hmi {
     //% help=hmi/sendCommend
     //% blockId=sendCommend block="sendCommend" blockGap=16
     //% useLoc="radio.sendCommend" draggableParameters=reporter
-    function sendCommend(sCmd: string) {
+    export function sendCommend(sCmd: string) {
         sCmd = "AA" + sCmd + "CC33C33C"
         serial.writeBuffer(Buffer.fromHex(sCmd))
-        sendCmdLastMs = control.millis()
     }
 
     /**
@@ -50,7 +37,9 @@ namespace hmi {
     //% help=hmi/receivedCommand
     //% blockId=receivedCommand block="receivedCommand" blockGap=16
     //% useLoc="radio.receivedCommand" draggableParameters=reporter
-    function receivedCommand(listCommand: any[]) {
+    export function receivedCommand(listCommand: any[]) {
+        let cmdTouchY = 0
+        let cmdTouchX = 0
         if (listCommand.length != 5) {
             basic.showIcon(IconNames.No)
         } else if (listCommand[0] == 115 || listCommand[0] == 114) {
@@ -64,9 +53,11 @@ namespace hmi {
         }
     }
     
-    function toHexString(number: number) {
+    function toHexString(number: number):string {
+        let temp2 = 0
+        let temp = 0
+        let sCmd = ""
         temp = Math.trunc(number)
-        sCmd = ""
         while (temp >= 1) {
             temp2 = temp % 16
             if (temp2 < 10) {
@@ -75,6 +66,32 @@ namespace hmi {
                 sCmd = "" + String.fromCharCode(temp2 + 55) + sCmd
             }
             temp = Math.trunc(temp / 16)
+        }
+        return sCmd
+    }
+
+    function receiving() {
+        let rxIndex = 0
+        let rxV = 0
+        let rxBuffer: Buffer = null
+        let rxCmd = [0]
+
+        rxBuffer = serial.readBuffer(1)
+        rxV = rxBuffer[0]
+        if (rxV == 170 && rxIndex == 0) {
+            rxIndex = 1
+            rxCmd = []
+        } else if (rxV == 204 && rxIndex == 1) {
+            rxIndex = 2
+        } else if (rxV == 51 && rxIndex == 2) {
+            rxIndex = 3
+        } else if (rxV == 195 && rxIndex == 3) {
+            rxIndex = 4
+        } else if (rxV == 60 && rxIndex == 4) {
+            rxIndex = 0
+            receivedCommand(rxCmd)
+        } else {
+            rxCmd.push(rxV)
         }
     }
 
