@@ -29,16 +29,20 @@ namespace hmi { //f011
     //% useLoc="hmi.init" draggableParameters=reporter
     export function init(type:DeviceType):void{
         deviceType=type
+        let receiveMsg:Action
         switch(type){
             case DeviceType.ta:
                 sCmdPrefix = "AA"
                 sCmdPostfix = "CC33C33C"
+                receiveMsg = receiveMsg_Ta
             case DeviceType.ta:
                 sCmdPrefix = "5AA5"
                 sCmdPostfix = ""
+                receiveMsg = receiveMsg_DGUS
         }
         // Max=254
         serial.setRxBufferSize(254)
+        loops.everyInterval(20, receiveMsg)
     }
 
     /**
@@ -53,25 +57,12 @@ namespace hmi { //f011
     }
 
     /**
-     * Send Command in HEX string, w/o space
-     */
-    //% help=hmi/sendCommand
-    //% blockId=sendCommand block="Send Command %sCmd" blockGap=16
-    //% useLoc="hmi.sendCommand" draggableParameters=reporter
-    export function sendCommand(sCmd: string) {
-        sCmd = sCmd.replaceAll(" ", "") + sCmdPostfix
-        if(deviceType==DeviceType.dgus)
-            sCmd = toHexString(sCmd.length/2)+sCmd
-        sCmd = sCmdPrefix+sCmd
-        serial.writeBuffer(Buffer.fromHex(sCmd))
-    }
-
-    /**
      * Send show image command with image ID，which prestored in your HMI screen
      */
     //% help=hmi/sendCommandShowPic
     //% blockId=sendCommandShowPic block="Show Image ID=%picID" blockGap=16
     //% useLoc="hmi.sendCommandShowPic" draggableParameters=reporter
+    //% weight=80
     export function sendCommandShowPic(picID: number) {
         switch(deviceType){
             case DeviceType.ta:
@@ -79,6 +70,21 @@ namespace hmi { //f011
             case DeviceType.dgus:
                 sendCommand("8003" + toHexString(picID,4))
         }
+    }
+
+    /**
+     * Send Command in HEX string, w/o space
+     */
+    //% help=hmi/sendCommand
+    //% blockId=sendCommand block="Send General Command %sCmd" blockGap=16
+    //% useLoc="hmi.sendCommand" draggableParameters=reporter
+    //% weight=50
+    export function sendCommand(sCmd: string) {
+        sCmd = sCmd.replaceAll(" ", "") + sCmdPostfix
+        if(deviceType==DeviceType.dgus)
+            sCmd = toHexString(sCmd.length/2)+sCmd
+        sCmd = sCmdPrefix+sCmd
+        serial.writeBuffer(Buffer.fromHex(sCmd))
     }
 
     function toHexString(number: number, minByteLength:number =1):string {
@@ -109,6 +115,7 @@ namespace hmi { //f011
     //% help=hmi/onTouch
     //% blockId=onTouch block="onTouch" blockGap=16
     //% useLoc="hmi.onTouch" draggableParameters=reporter
+    //% weight=49
     export function onTouch(handler:(x: number, y: number)=>void):void{
         onTouchHandler=handler
     }
@@ -119,8 +126,8 @@ namespace hmi { //f011
      * On Received Unknown Msg
      */
     //% help=hmi/receivedCommand
-    //% blockId=onReceivedUnknownMsg block="onReceivedUnknownMsg" blockGap=16
-    //% weight=50
+    //% blockId=onReceivedUnknownMsg block="On Received Unknown Msg" blockGap=16
+    //% weight=20
     //% useLoc="hmi.onReceivedUnknownMsg" draggableParameters=reporter
     export function onReceivedUnknownMsg(handler: (list: number[]) => void):void{
         onReceivedHandler=handler
@@ -136,14 +143,17 @@ namespace hmi { //f011
         }
     }
 
-    basic.forever( function() {
+    let rxIndex = 0
+    let rxV = 0
+    let rxLength = 0
+    let rxCmd: number[] = []
+
+    let receiveMsg_Ta: Action = function () {
         let rxIndex = 0
         let rxV = 0
-        let rxBuffer: Buffer = null
-        let rxCmd = [0]
+        let rxCmd: number[] = []
 
-        rxBuffer = serial.readBuffer(1)
-        rxV = rxBuffer[0]
+        rxV = serial.readBuffer(1)[0]
         if (rxV == 170 && rxIndex == 0) {
             rxIndex = 1
             rxCmd = []
@@ -159,6 +169,26 @@ namespace hmi { //f011
         } else {
             rxCmd.push(rxV)
         }
-    })
+    }
+
+    let receiveMsg_DGUS: Action = function () {
+
+        rxV = serial.readBuffer(1)[0]
+        if (rxV == 0x5A && rxIndex == 0) {
+            rxIndex = 1
+        } else if (rxV == 0xA5 && rxIndex == 1) {
+            rxIndex = 2
+        } else if (rxIndex == 2) {
+            rxLength=rxV
+            rxCmd = []
+            rxIndex = 3
+        } else if (rxIndex == 3) {
+            if (rxCmd.length < rxLength)
+                rxCmd.push(rxV)
+            else
+                rxIndex = 0
+                receivedCommand(rxCmd)
+        }
+    }
 
 }
