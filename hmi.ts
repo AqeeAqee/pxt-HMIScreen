@@ -71,7 +71,44 @@ namespace hmi { //f011
     }
 
     /**
-     * Show Text command 
+     * Show Text command with extend font (0x98)
+     */
+    //% help=hmi/sendCommandShowTextEx
+    //% blockId=sendCommandShowTextEx block="Show Text (extend font) %text |size %fs at x%x y%y color%color bgcolor%bgcolor fillmode%fillmode" blockGap=16
+    //% useLoc="hmi.sendCommandShowTextEx" draggableParameters=reporter
+    //% weight=80
+    export function sendCommandShowTextEx(text: string, fs: FontSize, x: number = 0, y: number = 0, color: number, bgcolor: number, fillmode:FontSize) {
+        let lCmd
+        switch (deviceType) {
+            case DeviceType.ta:
+                lCmd = [[0x53, 0x54, 0x55, 0x6e, 0x6f].get(fs)]
+                break
+            case DeviceType.dgus:
+                lCmd = [0x53]  //to be corrected
+                break
+        }
+        lCmd.push(Math.idiv(x, 256))
+        lCmd.push(Math.trunc(x % 256))
+        lCmd.push(Math.idiv(y, 256))
+        lCmd.push(Math.trunc(y % 256))
+        for (let i = 0; i < text.length; i++) {
+            lCmd.push(text.charCodeAt(i))
+        }
+        sendCommandList(lCmd)
+    }
+
+    function toUnicode(str: string) {
+        let unicode = Buffer.create(str.length)
+        for (let i = 0; i < str.length; i++) {
+            unicode.setNumber(NumberFormat.UInt16BE, i * 2, str.charCodeAt(i))
+        }
+        console.debug(unicode.toHex())
+    }
+
+
+
+    /**
+     * Show Text command (0x53, 0x54, 0x55, 0x6e, 0x6f)
      */
     //% help=hmi/sendCommandShowText
     //% blockId=sendCommandShowText block="Show Text %text |size %fs ||at x%x y%y" blockGap=16
@@ -98,7 +135,7 @@ namespace hmi { //f011
     }
 
     function sendCommandList(lCmd: number[]) {
-        if (deviceType == DeviceType.dgus)
+        if (deviceType == DeviceType.dgus) //insert length byte
             lCmd.insertAt(0, lCmd.length / 2) 
         let b = Buffer.fromHex(sCmdPrefix).concat(Buffer.fromArray(lCmd)).concat(Buffer.fromHex(sCmdPostfix))
         console.debug(b.toHex())
@@ -132,13 +169,30 @@ namespace hmi { //f011
     //% useLoc="hmi.sendCommand" draggableParameters=reporter
     //% weight=50
     export function sendCommand(sCmd: string) {
-        sCmd = sCmd.replaceAll(" ", "") + sCmdPostfix
+        sCmd = sCmd.replaceAll(" ", "")
+        sCmd = sCmd.replaceAll("0x", "")
+        sCmd = sCmd.replaceAll("0X", "")
+        sCmd = sCmd.replaceAll(",", "")
+        sCmd = sCmd+ sCmdPostfix
         if(deviceType==DeviceType.dgus)
             sCmd = toHexString(sCmd.length/2)+sCmd
         sCmd = sCmdPrefix+sCmd
         serial.writeBuffer(Buffer.fromHex(sCmd))
-        let b:Buffer
-        
+        console.debug("sendCommand:"+sCmd)
+    }
+
+    /**
+     * Output console log info to HMI
+     */
+    //% help=hmi/logToHMI
+    //% blockId=logToHMI block="Output console log info to HMI which level high than %level" blockGap=16
+    //% useLoc="hmi.logToHMI" draggableParameters=reporter
+    //% weight=50
+    export function logToHMI(level: ConsolePriority) {
+        console.minPriority=level
+        console.addListener(function (priority: ConsolePriority, text: string) {
+            sendCommandShowText(text,FontSize.fs16,4,400)
+        })
     }
 
     function toHexString(number: number, minByteLength:number =1):string {
@@ -208,7 +262,7 @@ namespace hmi { //f011
         let rxCmd: number[] = []
 
         rxV = serial.readBuffer(1)[0]
-        
+        console.debug("rx:"+rxV.toString())
         if (rxV == 170 && rxIndex == 0) {
             rxIndex = 1
             rxCmd = []
@@ -229,6 +283,7 @@ namespace hmi { //f011
     let receiveMsg_DGUS: Action = function () {
 
         rxV = serial.readBuffer(1)[0]
+        console.debug("rx:" + rxV.toString())
         if (rxV == 0x5A && rxIndex == 0) {
             rxIndex = 1
         } else if (rxV == 0xA5 && rxIndex == 1) {
