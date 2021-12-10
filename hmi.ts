@@ -8,14 +8,23 @@ enum DeviceType{
 enum FontSize {
     //% block=8x8 ASCII
     fs8,
+    //% block=8x16 
+    fs16,
+    //% block=16x32
+    fs32,
+    //% block=6x12
+    fs12,
+    //% block=12x24
+    fs24,
+}
+
+enum FontSizeUnicode {
     //% block=16x16 
     fs16,
-    //% block=32x32 GB2312
-    fs32,
-    //% block=12x12 GBK
-    fs12,
-    //% block=24x24 GB2312
+    //% block=24x24
     fs24,
+    //% block=32x32
+    fs32,
 }
 
 
@@ -26,9 +35,11 @@ declare namespace hmi {}
  */
 //% color=#23738C weight=96 icon="\uf03e"
 namespace hmi { //f011
+    let deviceType=DeviceType.ta
     let sCmdPrefix = "AA"
     let sCmdPostfix ="CC33C33C"
-    let deviceType=DeviceType.ta
+    let bCmdPrefix = Buffer.fromHex("AA")
+    let bCmdPostfix = Buffer.fromHex("CC33C33C")
 
     /**
      * Init with screen type, TA or DGUS command mode. And will set Rx Buffer Size to Max (254)
@@ -46,11 +57,15 @@ namespace hmi { //f011
             case DeviceType.ta:
                 sCmdPrefix = "AA"
                 sCmdPostfix = "CC33C33C"
+                bCmdPrefix = Buffer.fromHex("AA")
+                bCmdPostfix = Buffer.fromHex("CC33C33C")
                 receiveMsg = receiveMsg_Ta
                 break
             case DeviceType.dgus:
                 sCmdPrefix = "5AA5"
                 sCmdPostfix = ""
+                bCmdPrefix = Buffer.fromHex("5AA500") //3rd byte for length
+                bCmdPostfix = Buffer.fromHex("")
                 receiveMsg = receiveMsg_DGUS
                 break
         }
@@ -74,71 +89,68 @@ namespace hmi { //f011
      * Show Text command with extend font (0x98)
      */
     //% help=hmi/sendCommandShowTextEx
-    //% blockId=sendCommandShowTextEx block="Show Text (extend font) %text |size %fs at x%x y%y color%color bgcolor%bgcolor fillmode%fillmode" blockGap=16
+    //% blockId=sendCommandShowTextEx block="Show Text (extend font) %text |size %fs at x%x y%y color%color bgcolor%bgcolor" blockGap=16
     //% useLoc="hmi.sendCommandShowTextEx" draggableParameters=reporter
     //% weight=80
-    export function sendCommandShowTextEx(text: string, fs: FontSize, x: number = 0, y: number = 0, color: number, bgcolor: number, fillmode:FontSize) {
-        let lCmd
+    export function sendCommandShowTextUnicode(text: string, fs: FontSizeUnicode, x: number = 0, y: number = 0, color: number, bgcolor: number) {
+        let bCmd,bText, iText1st
         switch (deviceType) {
             case DeviceType.ta:
-                lCmd = [[0x53, 0x54, 0x55, 0x6e, 0x6f].get(fs)]
+                bCmd = Buffer.create(12+text.length*2)
+                bCmd.setUint8(0, 0x98)
+                bCmd.setNumber(NumberFormat.UInt16BE, 1, x)
+                bCmd.setNumber(NumberFormat.UInt16BE, 3, y)
+                bCmd.setNumber(NumberFormat.UInt8LE, 5, [0x26,0x28,0x2B].get(fs))  //font ID,Unicode 16x16, need transfer into Screen in advance
+                bCmd.setNumber(NumberFormat.UInt8LE, 6, 0x05|(color>=0?0x80:0)|(bgcolor>=0?0x40:0))  //C_Mode, draw front/bg color; unicode
+                bCmd.setNumber(NumberFormat.UInt8LE, 7, [0x0A,0x0B,0x0C].get(fs))  //16x16
+                bCmd.setNumber(NumberFormat.UInt16BE, 8, color)
+                bCmd.setNumber(NumberFormat.UInt16BE, 10, bgcolor)
+                iText1st = 12
                 break
-            case DeviceType.dgus:
-                lCmd = [0x53]  //to be corrected
+            case DeviceType.dgus:  //todo
+                bCmd = Buffer.create(5 + text.length)
+                bCmd.setUint8(0, 0x98)  //to be corrected
                 break
         }
-        lCmd.push(Math.idiv(x, 256))
-        lCmd.push(Math.trunc(x % 256))
-        lCmd.push(Math.idiv(y, 256))
-        lCmd.push(Math.trunc(y % 256))
         for (let i = 0; i < text.length; i++) {
-            lCmd.push(text.charCodeAt(i))
+            bCmd.setNumber(NumberFormat.UInt16BE, iText1st + i*2, text.charCodeAt(i))
         }
-        sendCommandList(lCmd)
+        sendCommandBuffer(bCmd)
     }
-
-    function toUnicode(str: string) {
-        let unicode = Buffer.create(str.length)
-        for (let i = 0; i < str.length; i++) {
-            unicode.setNumber(NumberFormat.UInt16BE, i * 2, str.charCodeAt(i))
-        }
-        console.debug(unicode.toHex())
-    }
-
-
 
     /**
-     * Show Text command (0x53, 0x54, 0x55, 0x6e, 0x6f)
+     * Show Text, ASCII only
+     * (command: 0x53, 0x54, 0x55, 0x6e, 0x6f)
      */
     //% help=hmi/sendCommandShowText
     //% blockId=sendCommandShowText block="Show Text %text |size %fs ||at x%x y%y" blockGap=16
     //% useLoc="hmi.sendCommandShowText" draggableParameters=reporter
     //% weight=80
     export function sendCommandShowText(text: string, fs: FontSize, x: number = 0, y: number = 0) {
-        let lCmd
+        let bCmd
         switch (deviceType) {
             case DeviceType.ta:
-                lCmd = [[0x53, 0x54, 0x55, 0x6e, 0x6f].get(fs)]
+                bCmd=Buffer.create(5+text.length)
+                bCmd.setUint8(0, [0x53, 0x54, 0x55, 0x6e, 0x6f].get(fs))
+                bCmd.setNumber(NumberFormat.UInt16BE, 1, x)
+                bCmd.setNumber(NumberFormat.UInt16BE, 3, y)
+                for (let i = 0; i < text.length; i++) {
+                    bCmd.setNumber(NumberFormat.UInt8LE, 5+i, text.charCodeAt(i))
+                }
                 break
-            case DeviceType.dgus:
-                lCmd = [0x53]  //to be corrected
+            case DeviceType.dgus: //todo
+                bCmd = Buffer.create(5 + text.length)
+                bCmd.setUint8(0,0x53)  //to be corrected
                 break
         }
-        lCmd.push(Math.idiv(x, 256))
-        lCmd.push(Math.trunc(x % 256))
-        lCmd.push(Math.idiv(y, 256))
-        lCmd.push(Math.trunc(y % 256))
-        for (let i = 0; i < text.length; i++) {
-            lCmd.push(text.charCodeAt(i))
-        }
-        sendCommandList(lCmd)
+        sendCommandBuffer(bCmd)
     }
 
-    function sendCommandList(lCmd: number[]) {
+    function sendCommandBuffer(bCmd: Buffer) {
         if (deviceType == DeviceType.dgus) //insert length byte
-            lCmd.insertAt(0, lCmd.length / 2) 
-        let b = Buffer.fromHex(sCmdPrefix).concat(Buffer.fromArray(lCmd)).concat(Buffer.fromHex(sCmdPostfix))
-        console.debug(b.toHex())
+            bCmdPrefix.setUint8(2, bCmd.length / 2)
+        let b = Buffer.concat([bCmdPrefix,bCmd,bCmdPostfix])
+        console.debug("Debug=="+b.toHex()+"==Debug")
         serial.writeBuffer(b)
     }
 
@@ -153,16 +165,17 @@ namespace hmi { //f011
     export function sendCommandShowPic(picID: number) {
         switch (deviceType) {
             case DeviceType.ta:
-                sendCommand("70" + toHexString(picID))
+                sendCommandBuffer(Buffer.fromArray([0x70, picID]))
                 break
             case DeviceType.dgus:
-                sendCommand("8003" + toHexString(picID, 2))
+                sendCommandBuffer(Buffer.fromArray([0x80, 0x03, picID / 256, picID % 256]))
                 break
         }
     }
 
     /**
-     * Send Command in HEX string, w/o space
+     * Send Command in HEX string (without command prefix/postfix)
+     *  w/o space
      */
     //% help=hmi/sendCommand
     //% blockId=sendCommand block="Send General Command %sCmd" blockGap=16
@@ -173,11 +186,9 @@ namespace hmi { //f011
         sCmd = sCmd.replaceAll("0x", "")
         sCmd = sCmd.replaceAll("0X", "")
         sCmd = sCmd.replaceAll(",", "")
-        sCmd = sCmd+ sCmdPostfix
         if(deviceType==DeviceType.dgus)
-            sCmd = toHexString(sCmd.length/2)+sCmd
-        sCmd = sCmdPrefix+sCmd
-        serial.writeBuffer(Buffer.fromHex(sCmd))
+            bCmdPostfix.setUint8(2,sCmd.length/2)
+        serial.writeBuffer(Buffer.concat([bCmdPrefix, Buffer.fromHex(sCmd),bCmdPostfix]))
         console.debug("sendCommand:"+sCmd)
     }
 
@@ -191,7 +202,16 @@ namespace hmi { //f011
     export function logToHMI(level: ConsolePriority) {
         console.minPriority=level
         console.addListener(function (priority: ConsolePriority, text: string) {
-            sendCommandShowText(text,FontSize.fs16,4,400)
+            let bCmd
+            if (deviceType == DeviceType.ta) {
+                bCmd = Buffer.fromHex("AA5400000140")
+            }else 
+            if (deviceType == DeviceType.dgus) { // todo
+                bCmd = Buffer.fromHex("5AA55400000140")
+                bCmd.setUint8(3, bCmd.length / 2)// length byte
+            }
+            //let b = bCmdPrefix.concat(bCmd).concat(Buffer.fromUTF8(text)).concat(bCmdPostfix)
+            serial.writeBuffer(Buffer.concat([bCmdPrefix, bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
         })
     }
 
