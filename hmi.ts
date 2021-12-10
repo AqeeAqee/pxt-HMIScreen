@@ -150,7 +150,7 @@ namespace hmi { //f011
         if (deviceType == DeviceType.dgus) //insert length byte
             bCmdPrefix.setUint8(2, bCmd.length / 2)
         let b = Buffer.concat([bCmdPrefix,bCmd,bCmdPostfix])
-        console.debug("Debug=="+b.toHex()+"==Debug")
+        //console.debug("Debug=="+b.toHex()+"==Debug")
         serial.writeBuffer(b)
     }
 
@@ -192,6 +192,7 @@ namespace hmi { //f011
         console.debug("sendCommand:"+sCmd)
     }
 
+    let logY=10, logYMin=10, logYMax=460, logYInterval=18
     /**
      * Output console log info to HMI
      */
@@ -202,16 +203,27 @@ namespace hmi { //f011
     export function logToHMI(level: ConsolePriority) {
         console.minPriority=level
         console.addListener(function (priority: ConsolePriority, text: string) {
+            text+="      "
             let bCmd
             if (deviceType == DeviceType.ta) {
-                bCmd = Buffer.fromHex("AA5400000140")
+                bCmd = Buffer.fromHex("AA5400000000")
+                bCmd.setNumber(NumberFormat.UInt16BE, 4, logY)
             }else 
             if (deviceType == DeviceType.dgus) { // todo
                 bCmd = Buffer.fromHex("5AA55400000140")
                 bCmd.setUint8(3, bCmd.length / 2)// length byte
             }
-            //let b = bCmdPrefix.concat(bCmd).concat(Buffer.fromUTF8(text)).concat(bCmdPostfix)
-            serial.writeBuffer(Buffer.concat([bCmdPrefix, bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
+            logY+=logYInterval
+            if(logY>logYMax) logY=logYMin
+
+            serial.writeBuffer(Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
+            text = "                           "
+            if (deviceType == DeviceType.ta) {
+                bCmd.setNumber(NumberFormat.UInt16BE, 4, logY)
+            } else
+            if (deviceType == DeviceType.dgus) { // todo
+            }
+            serial.writeBuffer(Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
         })
     }
 
@@ -233,7 +245,9 @@ namespace hmi { //f011
         return sCmd
     }
 
-    let onTouchHandler : (x:number, y:number)=>void
+    let onTouchHandler: (x: number, y: number) => void
+    let onTouchDownHandler: (x: number, y: number) => void
+    let onTouchUpHandler: (x: number, y: number) => void
 
 
     /**
@@ -243,8 +257,30 @@ namespace hmi { //f011
     //% blockId=onTouch block="onTouch" blockGap=16
     //% useLoc="hmi.onTouch" draggableParameters=reporter
     //% weight=49
-    export function onTouch(handler:(x: number, y: number)=>void):void{
-        onTouchHandler=handler
+    export function onTouch(handler: (x: number, y: number) => void): void {
+        onTouchHandler = handler
+    }
+
+    /**
+     * onTouchDown
+     */
+    //% help=hmi/onTouchDown
+    //% blockId=onTouchDown block="onTouchDown" blockGap=16
+    //% useLoc="hmi.onTouchDown" draggableParameters=reporter
+    //% weight=49
+    export function onTouchDown(handler: (x: number, y: number) => void): void {
+        onTouchDownHandler = handler
+    }
+
+    /**
+     * onTouchUp
+     */
+    //% help=hmi/onTouchUp
+    //% blockId=onTouchUp block="onTouchUp" blockGap=16
+    //% useLoc="hmi.onTouchUp" draggableParameters=reporter
+    //% weight=49
+    export function onTouchUp(handler: (x: number, y: number) => void): void {
+        onTouchUpHandler = handler
     }
 
     let onReceivedHandler : (list: number[])=>void
@@ -262,8 +298,15 @@ namespace hmi { //f011
 
     function receivedCommand(listCommand: number[]) {
         
-        if (listCommand[0] == 115 || listCommand[0] == 114) {
-            if(onTouchHandler)
+        if (listCommand[0] == 0x72) {
+            if (onTouchUpHandler)
+                onTouchUpHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
+            if (onTouchHandler)
+                onTouchHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
+        }else if (listCommand[0] == 0x73) {
+            if (onTouchDownHandler)
+                onTouchDownHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
+            if (onTouchHandler)
                 onTouchHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
         } else {
             if(onReceivedHandler)
@@ -277,12 +320,8 @@ namespace hmi { //f011
     let rxCmd: number[] = []
 
     let receiveMsg_Ta: Action = function () {
-        let rxIndex = 0
-        let rxV = 0
-        let rxCmd: number[] = []
 
         rxV = serial.readBuffer(1)[0]
-        console.debug("rx:"+rxV.toString())
         if (rxV == 170 && rxIndex == 0) {
             rxIndex = 1
             rxCmd = []
@@ -298,6 +337,7 @@ namespace hmi { //f011
         } else {
             rxCmd.push(rxV)
         }
+        //console.debug("rxIndex:" + rxIndex.toString() + " ,rx:" + toHexString(rxV) + " ,rxCmd:" + Buffer.fromArray(rxCmd).toHex())
     }
 
     let receiveMsg_DGUS: Action = function () {
