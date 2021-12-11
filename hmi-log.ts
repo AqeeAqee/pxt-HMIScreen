@@ -2,7 +2,7 @@ namespace hmi{
 
     let logY = 10, logYMin = 10, logYMax = 460, logYInterval = 16, logX = 10
     export function logToHMI(priority: ConsolePriority = ConsolePriority.Log, text: string) {
-        if (priority > console.minPriority) return
+        if (priority < console.minPriority) return
         text = "[" + priority.toString() + "]" + text + "  "
         let bCmd
         if (deviceType == DeviceType.ta) {

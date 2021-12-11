@@ -10,9 +10,9 @@ serial.redirect(
 )
 hmi.init(DeviceType.ta)
 hmi.addToConsoleLogListener()
-hmi.setMinPriority(ConsolePriority.Warning)
+hmi.setMinPriority(ConsolePriority.Log)
 hmi.showPic(0)
-hmi.debug("===pxt-SerialScreen test===")
+hmi.log("===pxt-SerialScreen test===")
 hmi.Hello()
 index = 7
 basic.showIcon(IconNames.House)
