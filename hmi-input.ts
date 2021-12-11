@@ -23,19 +23,29 @@ namespace hmi{
         onGetClockHandler = handler
     }
 
+    function BCD2Dec(list:number[], iFirst:number, iLast:number){
+        for(let i=iFirst;i<iLast;i++)
+            list[i] -= (list[i]>>4)*6
+    }
+
     function receivedCommand(listCommand: number[]) {
+        //version
         if (listCommand[0] == 0) {
             onVersionReplyHandler(Buffer.fromArray(listCommand).slice(1, listCommand.length - 5 - 1).toString())
         }
-        else if (listCommand[0] == 0x9B && listCommand[1] == 0x5A) {
+        //clock
+        else if (listCommand[0] == 0x9B && listCommand[1] == 0x5A) { 
+            BCD2Dec(listCommand, 2,8)
             onGetClockHandler(listCommand[6], listCommand[7], listCommand[8], listCommand[2], listCommand[3], listCommand[4], listCommand[5])
         }
+        //Touch Up
         else if (listCommand[0] == 0x72) {
             if (onTouchUpHandler)
                 onTouchUpHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
             if (onTouchHandler)
                 onTouchHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
         } 
+        //Touch Down
         else if (listCommand[0] == 0x73) {
             if (onTouchDownHandler)
                 onTouchDownHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])

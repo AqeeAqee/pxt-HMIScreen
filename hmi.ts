@@ -130,6 +130,11 @@ namespace hmi { //f011
         }
     }
 
+    function Dec2BCD(buf: Buffer, iFirst: number, iLast: number) {
+        for (let i = iFirst; i < iLast; i++)
+            buf[i] += (buf[i] >> 4) * 6
+    }
+
     /**
      * set clock on DWin screen
      */
@@ -142,6 +147,7 @@ namespace hmi { //f011
         switch (deviceType) {
             case DeviceType.ta:
                 bCmd = Buffer.fromArray([0xE7, 0x55, 0xAA, 0x5A, 0xA5, yy, mo, dd, hh, mi, ss])
+                Dec2BCD(bCmd, 5,10)
                 break
             case DeviceType.dgus:  //todo
                 bCmd = Buffer.create(5)
