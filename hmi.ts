@@ -1,4 +1,18 @@
 // 在此处添加您的代码
+/**
+ * todo:
+ * -0x00 version reply
+ * -0x5F backlight
+ * 0xE7 rtc
+ * 0x79 beep
+ * 0x9E rotate paste
+ * ?:
+ * 0xC104 示波器
+ * 0x45 textbox
+ * 0x98 any font text
+ * 0x72 direct mem write
+ * 
+ */
 enum DeviceType{
     //% block=TA/HMI
     ta,
@@ -52,9 +66,9 @@ namespace hmi { //f011
      * DGUS: 5AA5 ... 
      * And will set Rx Buffer Size to Max (254)
      */
-    //% blockId=init block="use DWin screen of %type mode" blockGap=16 
+    //% blockId=initialize block="use DWin screen of %type mode" blockGap=16
     //% weight=100
-    export function init(type:DeviceType):void{
+    export function initialize(type:DeviceType):void{
         deviceType=type
         let receiveMsg:Action
         switch(type){
@@ -85,6 +99,79 @@ namespace hmi { //f011
 
 
     /**
+     * beep DWin screen, unit is 10ms
+     */
+    //% blockId=beep block="beep for %duration|x 10 ms " blockGap=16
+    //% weight=90
+    export function beep(duration: number) {
+        switch (deviceType) {
+            case DeviceType.ta:
+                sendCommandBuffer(Buffer.fromArray([0x79, duration]))
+                break
+            case DeviceType.dgus:
+                sendCommandBuffer(Buffer.fromArray([0x80, 0x03, duration]))
+                break
+        }
+    }
+
+    /**
+     * set backlight of your DWin screen
+     */
+    //% blockId=backlight block="set backlight brightness%brightness " blockGap=16
+    //% weight=90
+    export function backlight(brightness: number) {
+        switch (deviceType) {
+            case DeviceType.ta:
+                sendCommandBuffer(Buffer.fromArray([0x5F, brightness]))
+                break
+            case DeviceType.dgus:
+                sendCommandBuffer(Buffer.fromArray([0x80, 0x03, brightness]))
+                break
+        }
+    }
+
+    /**
+     * set clock on DWin screen
+     */
+    //% blockId=setClock block="set clock time %hh|:|%mi|:|%ss || %yy|year %mo|month %dd|date" blockGap=16
+    //% inlineInputMode=inline
+    //% expandableArgumentMode="toggle"
+    //% weight=75
+    export function setClock(hh: number, mi: number = 0, ss: number = 0, yy: number = 21, mo: number = 12, dd: number = 12) {
+        let bCmd
+        switch (deviceType) {
+            case DeviceType.ta:
+                bCmd = Buffer.fromArray([0xE7, 0x55, 0xAA, 0x5A, 0xA5, yy, mo, dd, hh, mi, ss])
+                break
+            case DeviceType.dgus:  //todo
+                bCmd = Buffer.create(5)
+                break
+        }
+        //Debug("cut&paste:"+bCmd.toHex())
+        sendCommandBuffer(bCmd)
+    }
+
+    /**
+     * get clock from RTC of DWin screen
+     * [NOTE] return values by onGetClock block
+     */
+    //% blockId=getClock block="get RTC clock date&time" blockGap=16
+    //% weight=75
+    export function getClock() {
+        let bCmd
+        switch (deviceType) {
+            case DeviceType.ta:
+                bCmd = Buffer.fromHex("9B5A")
+                break
+            case DeviceType.dgus:  //todo
+                bCmd = Buffer.create(5)
+                break
+        }
+        //Debug("cut&paste:"+bCmd.toHex())
+        sendCommandBuffer(bCmd)
+    }
+
+    /**
      * show image with image #ID，which prestored in your DWin screen
      */
     //% blockId=ShowPic block="show #%picID image" blockGap=16
@@ -106,7 +193,7 @@ namespace hmi { //f011
     //% blockId=CutPasteImage block="cut #%picID|image at left%sx top%sy right%ex bottom%ey, paste to x%x y%y || background %bgmode" blockGap=16
     //% inlineInputMode=inline
     //% expandableArgumentMode="toggle"
-    //% weight=88
+    //% weight=75
     export function cutPasteImage(picID:number, sx: number = 0, sy: number = 0, ex: number = 100, ey: number = 100, x: number = 0, y: number = 0, bgmode: ImagePasteBgMode=ImagePasteBgMode.current) {
         let bCmd
         switch (deviceType) {
@@ -135,6 +222,7 @@ namespace hmi { //f011
     //% blockId=ShowTextEx block="show text (extend font) %text size %fs at x%x y%y ||color%color bgcolor%bgcolor" blockGap=16
     //% inlineInputMode=inline
     //% expandableArgumentMode="toggle"
+    //% advanced=1
     //% weight=80
     export function showTextUnicode(text: string, fs: FontSizeUnicode, x: number = 0, y: number = 0, color: number=0xFFFF, bgcolor: number=0x0) {
         let bCmd, bText, iText1st
@@ -203,7 +291,8 @@ namespace hmi { //f011
      * w/o space, comma, 0x, 0X
      */
     //% blockId=sendCommand block="send general command %sCmd" blockGap=16
-    //% weight=50
+    //% advanced=1
+    //% weight=80
     export function sendCommand(sCmd: string) {
         sCmd = sCmd.replaceAll(" ", "")
         sCmd = sCmd.replaceAll("0x", "")
@@ -211,6 +300,25 @@ namespace hmi { //f011
         sCmd = sCmd.replaceAll(",", "")
         sendCommandBuffer(Buffer.fromHex(sCmd))
         console.debug("sendCommand:"+sCmd)
+    }
+
+    //deprecated
+    function toHexString(number: number, minByteLength: number = 1): string {
+        let sCmd = ""
+        let temp = Math.trunc(number)
+        let temp2 = 0
+        while (temp >= 1) {
+            temp2 = temp % 16
+            if (temp2 < 10) {
+                sCmd = "" + convertToText(temp2) + sCmd
+            } else {
+                sCmd = "" + String.fromCharCode(temp2 + 55) + sCmd
+            }
+            temp = Math.trunc(temp / 16)
+        }
+        while (sCmd.length < minByteLength * 2)
+            sCmd = "0" + sCmd
+        return sCmd
     }
 
 

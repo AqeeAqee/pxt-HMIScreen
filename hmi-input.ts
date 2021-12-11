@@ -1,58 +1,42 @@
 namespace hmi{
 
-    ////////////////////////input/////////////////////////////
-
-    let onTouchHandler: (x: number, y: number) => void
-    let onTouchDownHandler: (x: number, y: number) => void
-    let onTouchUpHandler: (x: number, y: number) => void
-
+    let onVersionReplyHandler: (str: string) => void
 
     /**
-     * onTouch
+     * onVersionReply
      */
-    //% blockId=onTouch block="onTouch" blockGap=16
+    //% blockId=onVersionReply block="on Version Reply" blockGap=16
+    //% draggableParameters=reporter
     //% weight=49
-    export function onTouch(handler: (x: number, y: number) => void): void {
-        onTouchHandler = handler
+    export function onVersionReply(handler: (str: string) => void): void {
+        onVersionReplyHandler = handler
     }
 
+    let onGetClockHandler: (hour: number, minute: number, second: number, year: number, month: number, date: number, week: number) => void
     /**
-     * onTouchDown
+     * onGetClock
      */
-    //% blockId=onTouchDown block="onTouchDown" blockGap=16
+    //% blockId=onGetClock block="on Get Clock" blockGap=16
+    //% draggableParameters=reporter
     //% weight=49
-    export function onTouchDown(handler: (x: number, y: number) => void): void {
-        onTouchDownHandler = handler
-    }
-
-    /**
-     * onTouchUp
-     */
-    //% blockId=onTouchUp block="onTouchUp" blockGap=16
-    //% weight=49
-    export function onTouchUp(handler: (x: number, y: number) => void): void {
-        onTouchUpHandler = handler
-    }
-
-    let onReceivedHandler: (list: number[]) => void
-
-    /**
-     * On Received Unknown Msg
-     */
-    //% blockId=onReceivedUnknownMsg block="On Received Unknown Msg" blockGap=16
-    //% weight=20
-    export function onReceivedUnknownMsg(handler: (list: number[]) => void): void {
-        onReceivedHandler = handler
+    export function onGetClock(handler: (hour: number, minute: number, second: number, year: number, month: number, date: number, week: number) => void): void {
+        onGetClockHandler = handler
     }
 
     function receivedCommand(listCommand: number[]) {
-
-        if (listCommand[0] == 0x72) {
+        if (listCommand[0] == 0) {
+            onVersionReplyHandler(Buffer.fromArray(listCommand).slice(1, listCommand.length - 5 - 1).toString())
+        }
+        else if (listCommand[0] == 0x9B && listCommand[1] == 0x5A) {
+            onGetClockHandler(listCommand[6], listCommand[7], listCommand[8], listCommand[2], listCommand[3], listCommand[4], listCommand[5])
+        }
+        else if (listCommand[0] == 0x72) {
             if (onTouchUpHandler)
                 onTouchUpHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
             if (onTouchHandler)
                 onTouchHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
-        } else if (listCommand[0] == 0x73) {
+        } 
+        else if (listCommand[0] == 0x73) {
             if (onTouchDownHandler)
                 onTouchDownHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
             if (onTouchHandler)
@@ -110,23 +94,53 @@ namespace hmi{
         }
     }
 
-    //deprecated
-    function toHexString(number: number, minByteLength: number = 1): string {
-        let sCmd = ""
-        let temp = Math.trunc(number)
-        let temp2 = 0
-        while (temp >= 1) {
-            temp2 = temp % 16
-            if (temp2 < 10) {
-                sCmd = "" + convertToText(temp2) + sCmd
-            } else {
-                sCmd = "" + String.fromCharCode(temp2 + 55) + sCmd
-            }
-            temp = Math.trunc(temp / 16)
-        }
-        while (sCmd.length < minByteLength * 2)
-            sCmd = "0" + sCmd
-        return sCmd
+    let onTouchHandler: (x: number, y: number) => void
+    let onTouchDownHandler: (x: number, y: number) => void
+    let onTouchUpHandler: (x: number, y: number) => void
+
+    /**
+     * onTouch
+     */
+    //% blockId=onTouch block="onTouch" blockGap=16
+    //% draggableParameters=reporter
+    //% weight=40
+    export function onTouch(handler: (x: number, y: number) => void): void {
+        onTouchHandler = handler
+    }
+
+    /**
+     * onTouchDown
+     */
+    //% blockId=onTouchDown block="onTouchDown" blockGap=16
+    //% draggableParameters=reporter
+    //% advanced=1
+    //% weight=40
+    export function onTouchDown(handler: (x: number, y: number) => void): void {
+        onTouchDownHandler = handler
+    }
+
+    /**
+     * onTouchUp
+     */
+    //% blockId=onTouchUp block="onTouchUp" blockGap=16
+    //% draggableParameters=reporter
+    //% advanced=1
+    //% weight=40
+    export function onTouchUp(handler: (x: number, y: number) => void): void {
+        onTouchUpHandler = handler
+    }
+
+    let onReceivedHandler: (list: number[]) => void
+
+    /**
+     * On Received Unknown Msg
+     */
+    //% blockId=onReceivedUnknownMsg block="On Received Unknown Msg" blockGap=16
+    //% draggableParameters=reporter
+    //% advanced=1
+    //% weight=20
+    export function onReceivedUnknownMsg(handler: (list: number[]) => void): void {
+        onReceivedHandler = handler
     }
 
 }

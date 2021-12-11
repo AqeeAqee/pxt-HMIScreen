@@ -8,9 +8,9 @@ serial.redirect(
     SerialPin.P2,
     BaudRate.BaudRate115200
 )
-hmi.init(DeviceType.ta)
-hmi.addToConsoleLogListener()
-hmi.setMinPriority(ConsolePriority.Log)
+hmi.initialize(DeviceType.ta)
+//hmi.addToConsoleLogListener()
+hmi.setMinPriority(ConsolePriority.Debug)
 hmi.showPic(0)
 hmi.log("===pxt-SerialScreen test===")
 hmi.Hello()
