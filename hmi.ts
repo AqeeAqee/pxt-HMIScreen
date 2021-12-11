@@ -27,43 +27,43 @@ enum FontSizeUnicode {
     fs32,
 }
 
+enum ImagePasteBgMode {
+    //% block=Source
+    source,
+    //% block=Current
+    current,
+    //% block="Right Now"
+    rightnow,
+}
 
-declare namespace hmi {}
 
 /**
- * Control and get feedback via serial with a HMI screen (Serial Screen)
+ * Control and get feedback via serial with a DWin screen (HMI/Serial Screen)
  */
 //% color=#23738C weight=96 icon="\uf03e"
 namespace hmi { //f011
-    let deviceType=DeviceType.ta
-    let sCmdPrefix = "AA"
-    let sCmdPostfix ="CC33C33C"
-    let bCmdPrefix = Buffer.fromHex("AA")
-    let bCmdPostfix = Buffer.fromHex("CC33C33C")
+    export let deviceType=DeviceType.ta
+    export let bCmdPrefix = Buffer.fromHex("AA")
+    export let bCmdPostfix = Buffer.fromHex("CC33C33C")
 
     /**
-     * Init with screen type, TA or DGUS command mode. And will set Rx Buffer Size to Max (254)
+     * Init with screen type, TA or DGUS command mode. 
      * TA: AA ... CC33C33C
      * DGUS: 5AA5 ... 
+     * And will set Rx Buffer Size to Max (254)
      */
-    //% help=hmi/init
-    //% blockId=hmi_init block="Use HMI Screen in %type mode" blockGap=16 
+    //% blockId=init block="use DWin screen of %type mode" blockGap=16 
     //% weight=100
-    //% useLoc="hmi.init" draggableParameters=reporter
     export function init(type:DeviceType):void{
         deviceType=type
         let receiveMsg:Action
         switch(type){
             case DeviceType.ta:
-                sCmdPrefix = "AA"
-                sCmdPostfix = "CC33C33C"
                 bCmdPrefix = Buffer.fromHex("AA")
                 bCmdPostfix = Buffer.fromHex("CC33C33C")
                 receiveMsg = receiveMsg_Ta
                 break
             case DeviceType.dgus:
-                sCmdPrefix = "5AA5"
-                sCmdPostfix = ""
                 bCmdPrefix = Buffer.fromHex("5AA500") //3rd byte for length
                 bCmdPostfix = Buffer.fromHex("")
                 receiveMsg = receiveMsg_DGUS
@@ -75,34 +75,78 @@ namespace hmi { //f011
     }
 
     /**
-     * sendCommandHello
+     * Hello
      */
-    //% help=hmi/sendCommandHello
-    //% blockId=sendCommandHello block="sendCommandHello" blockGap=16
+    //% blockId=Hello block="Hello!" blockGap=16
     //% weight=95
-    //% useLoc="hmi.sendCommandHello" draggableParameters=reporter
-    export function sendCommandHello():void {
+    export function Hello():void {
         sendCommand("00")
+    }
+
+
+    /**
+     * show image with image #ID，which prestored in your DWin screen
+     */
+    //% blockId=ShowPic block="show #%picID image" blockGap=16
+    //% weight=90
+    export function showPic(picID: number) {
+        switch (deviceType) {
+            case DeviceType.ta:
+                sendCommandBuffer(Buffer.fromArray([0x70, picID]))
+                break
+            case DeviceType.dgus:
+                sendCommandBuffer(Buffer.fromArray([0x80, 0x03, picID / 256, picID % 256]))
+                break
+        }
     }
 
     /**
      * Show Text command with extend font (0x98)
      */
-    //% help=hmi/sendCommandShowTextEx
-    //% blockId=sendCommandShowTextEx block="Show Text (extend font) %text |size %fs at x%x y%y color%color bgcolor%bgcolor" blockGap=16
-    //% useLoc="hmi.sendCommandShowTextEx" draggableParameters=reporter
-    //% weight=80
-    export function sendCommandShowTextUnicode(text: string, fs: FontSizeUnicode, x: number = 0, y: number = 0, color: number, bgcolor: number) {
-        let bCmd,bText, iText1st
+    //% blockId=CutPasteImage block="cut #%picID|image at left%sx top%sy right%ex bottom%ey, paste to x%x y%y || background %bgmode" blockGap=16
+    //% inlineInputMode=inline
+    //% expandableArgumentMode="toggle"
+    //% weight=88
+    export function cutPasteImage(picID:number, sx: number = 0, sy: number = 0, ex: number = 100, ey: number = 100, x: number = 0, y: number = 0, bgmode: ImagePasteBgMode=ImagePasteBgMode.current) {
+        let bCmd
         switch (deviceType) {
             case DeviceType.ta:
-                bCmd = Buffer.create(12+text.length*2)
+                bCmd = Buffer.create(14)
+                bCmd.setUint8(0, [0x71, 0x9C, 0x9D].get(bgmode))
+                bCmd.setUint8(1, picID)
+                bCmd.setNumber(NumberFormat.UInt16BE, 2, sx)
+                bCmd.setNumber(NumberFormat.UInt16BE, 4, sy)
+                bCmd.setNumber(NumberFormat.UInt16BE, 6, ex)
+                bCmd.setNumber(NumberFormat.UInt16BE, 8, ey)
+                bCmd.setNumber(NumberFormat.UInt16BE, 10, x)
+                bCmd.setNumber(NumberFormat.UInt16BE, 12, y)
+                break
+            case DeviceType.dgus:  //todo
+                bCmd = Buffer.create(5 )
+                break
+        }
+        //Debug("cut&paste:"+bCmd.toHex())
+        sendCommandBuffer(bCmd)
+    }
+    
+    /**
+     * Show Text command with extend font (0x98), ASCII only cause of UTF8 unsupport by micro:bit
+     */
+    //% blockId=ShowTextEx block="show text (extend font) %text size %fs at x%x y%y ||color%color bgcolor%bgcolor" blockGap=16
+    //% inlineInputMode=inline
+    //% expandableArgumentMode="toggle"
+    //% weight=80
+    export function showTextUnicode(text: string, fs: FontSizeUnicode, x: number = 0, y: number = 0, color: number=0xFFFF, bgcolor: number=0x0) {
+        let bCmd, bText, iText1st
+        switch (deviceType) {
+            case DeviceType.ta:
+                bCmd = Buffer.create(12 + text.length * 2)
                 bCmd.setUint8(0, 0x98)
                 bCmd.setNumber(NumberFormat.UInt16BE, 1, x)
                 bCmd.setNumber(NumberFormat.UInt16BE, 3, y)
-                bCmd.setNumber(NumberFormat.UInt8LE, 5, [0x26,0x28,0x2B].get(fs))  //font ID,Unicode 16x16, need transfer into Screen in advance
-                bCmd.setNumber(NumberFormat.UInt8LE, 6, 0x05|(color>=0?0x80:0)|(bgcolor>=0?0x40:0))  //C_Mode, draw front/bg color; unicode
-                bCmd.setNumber(NumberFormat.UInt8LE, 7, [0x0A,0x0B,0x0C].get(fs))  //16x16
+                bCmd.setNumber(NumberFormat.UInt8LE, 5, [0x26, 0x28, 0x2B].get(fs))  //font ID,Unicode 16x16, need transfer into Screen in advance
+                bCmd.setNumber(NumberFormat.UInt8LE, 6, 0x05 | (color >= 0 ? 0x80 : 0) | (bgcolor >= 0 ? 0x40 : 0))  //C_Mode, draw front/bg color; unicode
+                bCmd.setNumber(NumberFormat.UInt8LE, 7, [0x0A, 0x0B, 0x0C].get(fs))  //16x16
                 bCmd.setNumber(NumberFormat.UInt16BE, 8, color)
                 bCmd.setNumber(NumberFormat.UInt16BE, 10, bgcolor)
                 iText1st = 12
@@ -113,20 +157,19 @@ namespace hmi { //f011
                 break
         }
         for (let i = 0; i < text.length; i++) {
-            bCmd.setNumber(NumberFormat.UInt16BE, iText1st + i*2, text.charCodeAt(i))
+            bCmd.setNumber(NumberFormat.UInt16BE, iText1st + i * 2, text.charCodeAt(i))
         }
         sendCommandBuffer(bCmd)
     }
 
     /**
-     * Show Text, ASCII only
+     * Show Text
      * (command: 0x53, 0x54, 0x55, 0x6e, 0x6f)
      */
-    //% help=hmi/sendCommandShowText
-    //% blockId=sendCommandShowText block="Show Text %text |size %fs ||at x%x y%y" blockGap=16
-    //% useLoc="hmi.sendCommandShowText" draggableParameters=reporter
+    //% blockId=ShowText block="show text %text |size %fs at x%x y%y" blockGap=16
+    //% inlineInputMode=inline
     //% weight=80
-    export function sendCommandShowText(text: string, fs: FontSize, x: number = 0, y: number = 0) {
+    export function showText(text: string, fs: FontSize, x: number = 0, y: number = 0) {
         let bCmd
         switch (deviceType) {
             case DeviceType.ta:
@@ -154,211 +197,21 @@ namespace hmi { //f011
         serial.writeBuffer(b)
     }
 
-
     /**
-     * Send show image command with image ID，which prestored in your HMI screen
+     * Send Command in HEX string
+     * without command prefix/postfix
+     * w/o space, comma, 0x, 0X
      */
-    //% help=hmi/sendCommandShowPic
-    //% blockId=sendCommandShowPic block="Show Image ID=%picID" blockGap=16
-    //% useLoc="hmi.sendCommandShowPic" draggableParameters=reporter
-    //% weight=80
-    export function sendCommandShowPic(picID: number) {
-        switch (deviceType) {
-            case DeviceType.ta:
-                sendCommandBuffer(Buffer.fromArray([0x70, picID]))
-                break
-            case DeviceType.dgus:
-                sendCommandBuffer(Buffer.fromArray([0x80, 0x03, picID / 256, picID % 256]))
-                break
-        }
-    }
-
-    /**
-     * Send Command in HEX string (without command prefix/postfix)
-     *  w/o space
-     */
-    //% help=hmi/sendCommand
-    //% blockId=sendCommand block="Send General Command %sCmd" blockGap=16
-    //% useLoc="hmi.sendCommand" draggableParameters=reporter
+    //% blockId=sendCommand block="send general command %sCmd" blockGap=16
     //% weight=50
     export function sendCommand(sCmd: string) {
         sCmd = sCmd.replaceAll(" ", "")
         sCmd = sCmd.replaceAll("0x", "")
         sCmd = sCmd.replaceAll("0X", "")
         sCmd = sCmd.replaceAll(",", "")
-        if(deviceType==DeviceType.dgus)
-            bCmdPostfix.setUint8(2,sCmd.length/2)
-        serial.writeBuffer(Buffer.concat([bCmdPrefix, Buffer.fromHex(sCmd),bCmdPostfix]))
+        sendCommandBuffer(Buffer.fromHex(sCmd))
         console.debug("sendCommand:"+sCmd)
     }
 
-    let logY=10, logYMin=10, logYMax=460, logYInterval=18
-    /**
-     * Output console log info to HMI
-     */
-    //% help=hmi/logToHMI
-    //% blockId=logToHMI block="Output console log info to HMI which level high than %level" blockGap=16
-    //% useLoc="hmi.logToHMI" draggableParameters=reporter
-    //% weight=50
-    export function logToHMI(level: ConsolePriority) {
-        console.minPriority=level
-        console.addListener(function (priority: ConsolePriority, text: string) {
-            text+="      "
-            let bCmd
-            if (deviceType == DeviceType.ta) {
-                bCmd = Buffer.fromHex("AA5400000000")
-                bCmd.setNumber(NumberFormat.UInt16BE, 4, logY)
-            }else 
-            if (deviceType == DeviceType.dgus) { // todo
-                bCmd = Buffer.fromHex("5AA55400000140")
-                bCmd.setUint8(3, bCmd.length / 2)// length byte
-            }
-            logY+=logYInterval
-            if(logY>logYMax) logY=logYMin
-
-            serial.writeBuffer(Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
-            text = "                           "
-            if (deviceType == DeviceType.ta) {
-                bCmd.setNumber(NumberFormat.UInt16BE, 4, logY)
-            } else
-            if (deviceType == DeviceType.dgus) { // todo
-            }
-            serial.writeBuffer(Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
-        })
-    }
-
-    function toHexString(number: number, minByteLength:number =1):string {
-        let sCmd = ""
-        let temp = Math.trunc(number)
-        let temp2 = 0
-        while (temp >= 1) {
-            temp2 = temp % 16
-            if (temp2 < 10) {
-                sCmd = "" + convertToText(temp2) + sCmd
-            } else {
-                sCmd = "" + String.fromCharCode(temp2 + 55) + sCmd
-            }
-            temp = Math.trunc(temp/16)
-        }
-        while (sCmd.length<minByteLength*2)
-            sCmd = "0" + sCmd 
-        return sCmd
-    }
-
-    let onTouchHandler: (x: number, y: number) => void
-    let onTouchDownHandler: (x: number, y: number) => void
-    let onTouchUpHandler: (x: number, y: number) => void
-
-
-    /**
-     * onTouch
-     */
-    //% help=hmi/onTouch
-    //% blockId=onTouch block="onTouch" blockGap=16
-    //% useLoc="hmi.onTouch" draggableParameters=reporter
-    //% weight=49
-    export function onTouch(handler: (x: number, y: number) => void): void {
-        onTouchHandler = handler
-    }
-
-    /**
-     * onTouchDown
-     */
-    //% help=hmi/onTouchDown
-    //% blockId=onTouchDown block="onTouchDown" blockGap=16
-    //% useLoc="hmi.onTouchDown" draggableParameters=reporter
-    //% weight=49
-    export function onTouchDown(handler: (x: number, y: number) => void): void {
-        onTouchDownHandler = handler
-    }
-
-    /**
-     * onTouchUp
-     */
-    //% help=hmi/onTouchUp
-    //% blockId=onTouchUp block="onTouchUp" blockGap=16
-    //% useLoc="hmi.onTouchUp" draggableParameters=reporter
-    //% weight=49
-    export function onTouchUp(handler: (x: number, y: number) => void): void {
-        onTouchUpHandler = handler
-    }
-
-    let onReceivedHandler : (list: number[])=>void
-
-    /**
-     * On Received Unknown Msg
-     */
-    //% help=hmi/receivedCommand
-    //% blockId=onReceivedUnknownMsg block="On Received Unknown Msg" blockGap=16
-    //% weight=20
-    //% useLoc="hmi.onReceivedUnknownMsg" draggableParameters=reporter
-    export function onReceivedUnknownMsg(handler: (list: number[]) => void):void{
-        onReceivedHandler=handler
-    }
-
-    function receivedCommand(listCommand: number[]) {
-        
-        if (listCommand[0] == 0x72) {
-            if (onTouchUpHandler)
-                onTouchUpHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
-            if (onTouchHandler)
-                onTouchHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
-        }else if (listCommand[0] == 0x73) {
-            if (onTouchDownHandler)
-                onTouchDownHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
-            if (onTouchHandler)
-                onTouchHandler(listCommand[1] * 256 + listCommand[2], listCommand[3] * 256 + listCommand[4])
-        } else {
-            if(onReceivedHandler)
-                onReceivedHandler(listCommand)
-        }
-    }
-
-    let rxIndex = 0
-    let rxV = 0
-    let rxLength = 0
-    let rxCmd: number[] = []
-
-    let receiveMsg_Ta: Action = function () {
-
-        rxV = serial.readBuffer(1)[0]
-        if (rxV == 170 && rxIndex == 0) {
-            rxIndex = 1
-            rxCmd = []
-        } else if (rxV == 204 && rxIndex == 1) {
-            rxIndex = 2
-        } else if (rxV == 51 && rxIndex == 2) {
-            rxIndex = 3
-        } else if (rxV == 195 && rxIndex == 3) {
-            rxIndex = 4
-        } else if (rxV == 60 && rxIndex == 4) {
-            rxIndex = 0
-            receivedCommand(rxCmd)
-        } else {
-            rxCmd.push(rxV)
-        }
-        //console.debug("rxIndex:" + rxIndex.toString() + " ,rx:" + toHexString(rxV) + " ,rxCmd:" + Buffer.fromArray(rxCmd).toHex())
-    }
-
-    let receiveMsg_DGUS: Action = function () {
-
-        rxV = serial.readBuffer(1)[0]
-        console.debug("rx:" + rxV.toString())
-        if (rxV == 0x5A && rxIndex == 0) {
-            rxIndex = 1
-        } else if (rxV == 0xA5 && rxIndex == 1) {
-            rxIndex = 2
-        } else if (rxIndex == 2) {
-            rxLength=rxV
-            rxCmd = []
-            rxIndex = 3
-        } else if (rxIndex == 3) {
-            if (rxCmd.length < rxLength)
-                rxCmd.push(rxV)
-            else
-                rxIndex = 0
-                receivedCommand(rxCmd)
-        }
-    }
 
 }

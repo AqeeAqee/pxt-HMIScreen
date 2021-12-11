@@ -10,7 +10,9 @@
         "main.blocks",
         "main.ts",
         "README.md",
-        "hmi.ts"
+        "hmi.ts",
+        "hmi-input.ts",
+        "hmi-log.ts"
     ],
     "testFiles": [
         "test.ts"
