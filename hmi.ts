@@ -3,13 +3,12 @@
  * todo:
  * -0x00 version reply
  * -0x5F backlight
- * 0xE7 rtc
- * 0x79 beep
+ * -0xE7 rtc
+ * -0x79 beep
  * 0x9E rotate paste
  * ?:
  * 0xC104 示波器
  * 0x45 textbox
- * 0x98 any font text
  * 0x72 direct mem write
  * 
  */
@@ -194,13 +193,45 @@ namespace hmi { //f011
     }
 
     /**
-     * Show Text command with extend font (0x98)
+     *  Cut a part of a image then paste it at current screen with given angle
+     */
+    //% blockId=rotateCutPasteImage block="cut #%picID|image at left%sx top%sy right%ex bottom%ey, center:x%cx|y%cy rotate|%al|x0.5° , paste to|x%x y%y || background tranparent %bgTranparent" blockGap=16
+    //% inlineInputMode=inline
+    //% expandableArgumentMode="toggle"
+    //% weight=75
+    export function rotateCutPasteImage(picID: number, sx: number = 0, sy: number = 0, ex: number = 100, ey: number = 100, cx: number = 0, cy: number = 0, al:number=45, x: number = 0, y: number = 0, bgTranparent:boolean=true) {
+        let bCmd
+        switch (deviceType) {
+            case DeviceType.ta:
+                bCmd = Buffer.create(22)
+                bCmd.setUint8(0, 0x9E)
+                bCmd.setUint8(1, bgTranparent ? 1 : 0)
+                bCmd.setNumber(NumberFormat.UInt16BE, 2, picID)
+                bCmd.setNumber(NumberFormat.UInt16BE, 4, sx)
+                bCmd.setNumber(NumberFormat.UInt16BE, 6, sy)
+                bCmd.setNumber(NumberFormat.UInt16BE, 8, ex)
+                bCmd.setNumber(NumberFormat.UInt16BE, 10, ey)
+                bCmd.setNumber(NumberFormat.UInt16BE, 12, cx)
+                bCmd.setNumber(NumberFormat.UInt16BE, 14, cy)
+                bCmd.setNumber(NumberFormat.UInt16BE, 16, al)
+                bCmd.setNumber(NumberFormat.UInt16BE, 18, x)
+                bCmd.setNumber(NumberFormat.UInt16BE, 20, y)
+                break
+            case DeviceType.dgus:  //todo
+                bCmd = Buffer.create(5)
+                break
+        }
+        sendCommandBuffer(bCmd)
+        console.debug("routate&cut&paste:"+bCmd.toHex())
+    }
+    /**
+     * Cut a part of a image then paste it at current screen 
      */
     //% blockId=CutPasteImage block="cut #%picID|image at left%sx top%sy right%ex bottom%ey, paste to x%x y%y || background %bgmode" blockGap=16
     //% inlineInputMode=inline
     //% expandableArgumentMode="toggle"
     //% weight=75
-    export function cutPasteImage(picID:number, sx: number = 0, sy: number = 0, ex: number = 100, ey: number = 100, x: number = 0, y: number = 0, bgmode: ImagePasteBgMode=ImagePasteBgMode.current) {
+    export function cutPasteImage(picID: number, sx: number = 0, sy: number = 0, ex: number = 100, ey: number = 100, x: number = 0, y: number = 0, bgmode: ImagePasteBgMode = ImagePasteBgMode.current) {
         let bCmd
         switch (deviceType) {
             case DeviceType.ta:
@@ -215,13 +246,13 @@ namespace hmi { //f011
                 bCmd.setNumber(NumberFormat.UInt16BE, 12, y)
                 break
             case DeviceType.dgus:  //todo
-                bCmd = Buffer.create(5 )
+                bCmd = Buffer.create(5)
                 break
         }
         //Debug("cut&paste:"+bCmd.toHex())
         sendCommandBuffer(bCmd)
     }
-    
+
     /**
      * Show Text command with extend font (0x98), ASCII only cause of UTF8 unsupport by micro:bit
      */
