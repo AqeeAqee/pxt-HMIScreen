@@ -8,13 +8,15 @@ serial.redirect(
     SerialPin.P2,
     BaudRate.BaudRate115200
 )
-hmi.initialize(DeviceType.ta)
+radio.setGroup(10)
+hmi.initialize(DeviceType.ta, CommunicationType.radio)
+basic.showString("R")
 //hmi.addToConsoleLogListener()
-hmi.setMinPriority(ConsolePriority.Debug)
+//hmi.setMinPriority(ConsolePriority.Debug)
 hmi.showPic(0)
 hmi.log("===pxt-SerialScreen test===")
 hmi.Hello()
-index = 7
+index = 1
 basic.showIcon(IconNames.House)
 /*
 basic.forever(function () {
@@ -25,19 +27,17 @@ basic.forever(function () {
 function showNextImage() {
     if (deltaPicID != 0) {
         index += deltaPicID
-        if (index < 1) {
-            index = 1
+        if (index < 0) {
+            index = 0
         }
-        if (index >= 59 || index < 1) {
-            index = 59
+        else if (index > 3 ) {
+            index = 3
         }
-        //hmi.ShowPic(index)
-        hmi.cutPasteImage(index, 0, 0, 639, 479, 0, 0, ImagePasteBgMode.current)
-
-        led.plotBarGraph(
-            index,
-            59
-        )
+        hmi.showPic(index)
+        //hmi.cutPasteImage(index, 0, 0, 639, 479, 0, 0, ImagePasteBgMode.current)
+        
+        //led.plotBarGraph(index,59)
+        basic.showNumber(index,50)
     }
     hmi.showTextUnicode(
         convertToText(index),

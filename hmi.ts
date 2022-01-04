@@ -12,7 +12,13 @@
  * 0x72 direct mem write
  * 
  */
-enum DeviceType{
+enum CommunicationType {
+    //% block=Serial
+    serial,
+    //% block=Radio
+    radio,
+}
+enum DeviceType {
     //% block=TA/HMI
     ta,
     //% block=DGUS
@@ -55,7 +61,8 @@ enum ImagePasteBgMode {
  */
 //% color=#23738C weight=96 icon="\uf03e"
 namespace hmi { //f011
-    export let deviceType=DeviceType.ta
+    export let deviceType = DeviceType.ta
+    export let _comType = CommunicationType.radio
     export let bCmdPrefix = Buffer.fromHex("AA")
     export let bCmdPostfix = Buffer.fromHex("CC33C33C")
 
@@ -65,10 +72,11 @@ namespace hmi { //f011
      * DGUS: 5AA5 ... 
      * And will set Rx Buffer Size to Max (254)
      */
-    //% blockId=initialize block="use DWin screen of %type mode" blockGap=16
+    //% blockId=initialize block="use DWin screen of %type mode via %comType" blockGap=16
     //% weight=100
-    export function initialize(type:DeviceType):void{
+    export function initialize(type: DeviceType, comType: CommunicationType):void{
         deviceType=type
+        _comType = comType
         let receiveMsg:Action
         switch(type){
             case DeviceType.ta:
@@ -319,7 +327,11 @@ namespace hmi { //f011
             bCmdPrefix.setUint8(2, bCmd.length / 2)
         let b = Buffer.concat([bCmdPrefix,bCmd,bCmdPostfix])
         //console.debug("Debug=="+b.toHex()+"==Debug")
-        serial.writeBuffer(b)
+        if(_comType==CommunicationType.serial){
+            serial.writeBuffer(b)
+        }else if(_comType==CommunicationType.radio){
+            radio.sendBuffer(b)
+        }
     }
 
     /**
