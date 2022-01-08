@@ -1,5 +1,23 @@
 namespace hmi{
 
+    //receive from radio
+    let rcvRadioBuffer:number[]=[]
+    export let onRadioReceivedHandler= function (rcvBuffer: Buffer) :void{
+        rcvRadioBuffer=rcvRadioBuffer.concat(rcvBuffer.toArray(NumberFormat.UInt8BE))
+    }
+
+    function receiveOneByte(): number {
+        if (_comType == CommunicationType.serial) {
+            return serial.readBuffer(1)[0]
+        } else if (_comType == CommunicationType.radio && rcvRadioBuffer.length > 0) {
+            let v=rcvRadioBuffer.get(0)
+            rcvRadioBuffer.removeAt(0)
+            return v
+        }
+        return null
+    }
+
+
     let onVersionReplyHandler: (str: string) => void
 
     /**
@@ -30,11 +48,11 @@ namespace hmi{
 
     function receivedCommand(listCommand: number[]) {
         //version
-        if (listCommand[0] == 0) {
+        if (listCommand[0] == 0 && onVersionReplyHandler) {
             onVersionReplyHandler(Buffer.fromArray(listCommand).slice(1, listCommand.length - 5 - 1).toString())
         }
         //clock
-        else if (listCommand[0] == 0x9B && listCommand[1] == 0x5A) { 
+        else if (listCommand[0] == 0x9B && listCommand[1] == 0x5A && onGetClockHandler) {
             BCD2Dec(listCommand, 2,8)
             onGetClockHandler(listCommand[6], listCommand[7], listCommand[8], listCommand[2], listCommand[3], listCommand[4], listCommand[5])
         }
@@ -63,8 +81,10 @@ namespace hmi{
     let rxCmd: number[] = []
 
     export let receiveMsg_Ta: Action = function () {
+        rxV = receiveOneByte()
+        if(rxV==null)
+            return
 
-        rxV = serial.readBuffer(1)[0]
         if (rxV == 170 && rxIndex == 0) {
             rxIndex = 1
             rxCmd = []
@@ -80,12 +100,14 @@ namespace hmi{
         } else {
             rxCmd.push(rxV)
         }
-        //console.debug("rxIndex:" + rxIndex.toString() + " ,rx:0x" + Buffer.fromArray([rxV]).toHex() + " ,rxCmd:0x" + Buffer.fromArray(rxCmd).toHex())
+        //serial.writeLine("rxIndex:" + rxIndex.toString() + " ,rx:0x" + Buffer.fromArray([rxV]).toHex() + " ,rxCmd:0x" + Buffer.fromArray(rxCmd).toHex())
     }
 
     export let receiveMsg_DGUS: Action = function () {
+        rxV = receiveOneByte()
+        if (rxV == null)
+            return
 
-        rxV = serial.readBuffer(1)[0]
         console.debug("rx:" + rxV.toString())
         if (rxV == 0x5A && rxIndex == 0) {
             rxIndex = 1

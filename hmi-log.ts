@@ -1,30 +1,47 @@
 namespace hmi{
 
-    let logY = 10, logYMin = 10, logYMax = 460, logYInterval = 16, logX = 10
+    let logY = 10, logYMin = 10, logYMax = 270, logYInterval = 16, logX = 10
     export function logToHMI(priority: ConsolePriority = ConsolePriority.Log, text: string) {
         if (priority < console.minPriority) return
-        text = "[" + priority.toString() + "]" + text + "  "
-        let bCmd
-        if (deviceType == DeviceType.ta) {
-            bCmd = Buffer.fromHex("AA5400000000")
-            bCmd.setNumber(NumberFormat.UInt16BE, 2, logX)
-            bCmd.setNumber(NumberFormat.UInt16BE, 4, logY)
-        } else
-            if (deviceType == DeviceType.dgus) { // todo
-                bCmd = Buffer.fromHex("5AA55400000140")
-                bCmd.setUint8(3, bCmd.length / 2)// length byte
-            }
-        logY += logYInterval
-        if (logY > logYMax) logY = logYMin
+        text = "[" + ["D","L","W","E","S"].get(priority) + "]" + text + "  "
+        showText(text, FontSize.fs12, logX, logY)
+        // let bCmd
+        // if (deviceType == DeviceType.ta) {
+        //     bCmd = Buffer.fromHex("AA6E00000000") 
+        //     bCmd.setNumber(NumberFormat.UInt16BE, 2, logX)
+        //     bCmd.setNumber(NumberFormat.UInt16BE, 4, logY)
+        // } else
+        //     if (deviceType == DeviceType.dgus) { // todo
+        //         bCmd = Buffer.fromHex("5AA55400000140")
+        //         bCmd.setUint8(3, bCmd.length / 2)// length byte
+        //     }
+        // if(_comType==CommunicationType.serial)
+        //     serial.writeBuffer(Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
+        // else if(_comType==CommunicationType.radio){
+        //     let b = Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]).chunked(19)
+        //     b.forEach((subBuffer: Buffer, index: number): void => {
+        //         radio.sendBuffer(subBuffer)
+        //     })
+        // }
 
-        serial.writeBuffer(Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
+        //clear next line
+        logY += logYInterval
+        if (logY > logYMax-logYInterval) logY = logYMin
         text = "                           "
-        if (deviceType == DeviceType.ta) {
-            bCmd.setNumber(NumberFormat.UInt16BE, 4, logY)
-        } else
-            if (deviceType == DeviceType.dgus) { // todo
-            }
-        serial.writeBuffer(Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
+        showText(text, FontSize.fs12, logX, logY)
+        // if (deviceType == DeviceType.ta) {
+        //     bCmd.setNumber(NumberFormat.UInt16BE, 4, logY)
+        // } else
+        //     if (deviceType == DeviceType.dgus) { // todo
+        //     }
+        // if (_comType == CommunicationType.serial)
+        //     serial.writeBuffer(Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]))
+        // else if (_comType == CommunicationType.radio){
+        //     let b = Buffer.concat([bCmd, Buffer.fromUTF8(text), bCmdPostfix]).chunked(19)
+        //     b.forEach((subBuffer:Buffer, index:number):void=>{
+        //         radio.sendBuffer(subBuffer)
+        //     })
+        // }
     }
 
     /**
