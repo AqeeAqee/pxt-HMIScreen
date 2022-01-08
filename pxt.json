@@ -10,7 +10,8 @@
         "README.md",
         "hmi.ts",
         "hmi-input.ts",
-        "hmi-log.ts"
+        "hmi-log.ts",
+        "hmi-instructions.ts"
     ],
     "testFiles": [
         "test.ts"
