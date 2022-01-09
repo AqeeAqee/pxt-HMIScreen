@@ -1,25 +1,28 @@
 // 在此处添加您的代码
 /**
  * todo:
- * simplify 0x98, remove param color/bgcolor, use setting before
- * 花式图片切换
- * QRCode
+ * clear screen
+ * set radio group
+ * Joystick, via micro:bit event
  * draw line
- * draw circle
- * note Serail/Radio need other setting blocks
- * group blocks
  * set debug window size&pos
+ * group blocks
+ * note Serail/Radio need other setting blocks
  * DGus mode
  * ? on-screen micro:bit emulator
  * ? scratch resource, and interact
  * ? arcade(makecode) resource, and interact
- * -radio receiving
- * -0x40 set color/bgcolor
- * -0x50 draw dot
- * -0x00 version reply
- * -0x5F backlight
- * -0xE7 rtc
- * -0x79 beep
+ * +simplify 0x98, with Font#0 style, remove param color/bgcolor, use setting before
+ * -draw circle (not support by COF screen)
+ * -0x7D 花式图片切换, screen halt
+ * +0x96 QRCode
+ * +radio receiving
+ * +0x40 set color/bgcolor
+ * +0x50 draw dot
+ * +0x00 version reply
+ * +0x5F backlight
+ * +0xE7 rtc
+ * +0x79 beep
  * 0x9E rotate paste
  * ?:
  * 0xC104 示波器
@@ -38,36 +41,6 @@ enum DeviceType {
     ta,
     //% block=DGUS
     dgus,
-}
-enum FontSize {
-    //% block=8x8 ASCII
-    fs8,
-    //% block=8x16 
-    fs16,
-    //% block=16x32
-    fs32,
-    //% block=6x12
-    fs12,
-    //% block=12x24
-    fs24,
-}
-
-enum FontSizeUnicode {
-    //% block=16x16 
-    fs16,
-    //% block=24x24
-    fs24,
-    //% block=32x32
-    fs32,
-}
-
-enum ImagePasteBgMode {
-    //% block=Source
-    source,
-    //% block=Current
-    current,
-    //% block="Right Now"
-    rightnow,
 }
 
 
@@ -145,7 +118,7 @@ namespace hmi { //f011
     }
 
     //deprecated
-    function toHexString(number: number, minByteLength: number = 1): string {
+    export function toHexString(number: number, minByteLength: number = 1): string {
         let sCmd = ""
         let temp = Math.trunc(number)
         let temp2 = 0
